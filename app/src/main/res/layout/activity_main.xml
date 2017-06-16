@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="com.example.lisirrx.hci.MainActivity">
+
+    <Button
+        android:id="@+id/button_vision"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="看"
+        android:textColor="#ffffff"
+
+        android:textSize="80dp"
+        android:layout_weight="1"
+        android:layout_margin="10dp"
+        android:background="@color/pink500"
+        />
+
+
+    <Button
+        android:id="@+id/button_sound"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="听"
+        android:textColor="#ffffff"
+        android:textSize="80dp"
+        android:layout_weight="1"
+        android:layout_margin="10dp"
+        android:background="@color/lightBlue500"
+
+        />
+
+
+</LinearLayout>
