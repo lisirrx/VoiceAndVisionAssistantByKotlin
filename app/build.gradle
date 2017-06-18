@@ -4,10 +4,10 @@ apply plugin: 'kotlin-android'
 
 android {
     compileSdkVersion 25
-    buildToolsVersion "25.0.2"
+    buildToolsVersion '25.0.0'
     defaultConfig {
         applicationId "com.example.lisirrx.hci"
-        minSdkVersion 23
+        minSdkVersion 21
         targetSdkVersion 25
         versionCode 1
         versionName "1.0"
@@ -19,7 +19,10 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+
 }
+
+
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
@@ -32,5 +35,10 @@ dependencies {
     implementation 'com.android.support.constraint:constraint-layout:1.0.2'
     compile "org.jetbrains.anko:anko:$anko_version"
     compile 'com.squareup.okhttp3:okhttp:3.8.0'
-
+    //    compile 'com.microsoft.projectoxford:vision:0.5.0'
+    compile 'com.google.code.gson:gson:2.8.1'
+    compile 'com.microsoft.projectoxford:speechrecognition:1.2.2'
+    compile files('libs/VoiceRecognition-2.1.20.jar')
+    compile files('libs/com.baidu.tts_2.3.0.jar')
 }
+

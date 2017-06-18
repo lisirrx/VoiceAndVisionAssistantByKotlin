@@ -2,6 +2,7 @@ package com.example.lisirrx.hci
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -15,36 +16,52 @@ import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureRequest
 import android.media.Image
 import android.media.ImageReader
-import android.os.Build
-import android.os.Bundle
-import android.os.Handler
-import android.os.HandlerThread
+import android.opengl.Visibility
+import android.os.*
 import android.support.annotation.RequiresApi
 import android.support.v4.app.ActivityCompat
 import android.support.v7.app.AppCompatActivity
+import android.util.AndroidRuntimeException
 import android.util.Log
 import android.util.SparseIntArray
-import android.view.Surface
-import android.view.SurfaceHolder
-import android.view.SurfaceView
-import android.view.View
+import android.view.*
 import android.widget.ImageView
+import android.widget.TextView
 import android.widget.Toast
+import com.baidu.speech.EventListener
+import com.baidu.speech.EventManager
+import com.baidu.speech.EventManagerFactory
 import org.jetbrains.anko.cameraManager
-
+import java.io.IOException;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import java.io.File
+import java.io.FileNotFoundException
+import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.util.*
+import com.google.gson.*
+import org.json.JSONArray
+import org.json.JSONException
+import org.json.JSONObject
+import java.lang.reflect.Type
 
 /**
  * Created by lisirrx on 17-6-16.
  */
 class Camera2Activity : AppCompatActivity(), View.OnClickListener {
+    private lateinit var mWpEventManager: EventManager
+    private lateinit var picture : Bitmap
 
-    private var picture : Bitmap? = null
+    private var requestFlag = false
+
+
 
     private var mSurfaceView: SurfaceView? = null
     private var mSurfaceHolder: SurfaceHolder? = null
-    private var iv_show: ImageView? = null
     private var mCameraManager: CameraManager? = null//摄像头管理器
     private var childHandler: Handler? = null
     private var mainHandler: Handler? = null
@@ -67,6 +84,40 @@ class Camera2Activity : AppCompatActivity(), View.OnClickListener {
     }
 
 
+    override fun onResume() {
+        super.onResume()
+        mWpEventManager = EventManagerFactory.create(this@Camera2Activity, "wp")
+
+        // 2) 注册唤醒事件监听器
+        mWpEventManager.registerListener(EventListener { name, params, data, offset, length ->
+            Log.d("Camera", String.format("event: name=%s, params=%s", name, params))
+            try {
+                val json = JSONObject(params)
+                if ("wp.data" == name) {
+                    val word = json.getString("word")
+                    if("拍照" in word || "照相" in word){
+                        takePicture()
+                    }
+
+                } else if ("wp.exit" == name) {
+                }
+            } catch (e: JSONException) {
+                throw AndroidRuntimeException(e)
+            }
+        })
+
+        // 3) 通知唤醒管理器, 启动唤醒功能
+        val params = HashMap<String, String>()
+        params.put("kws-file", "assets:///WakeUp.bin")
+        mWpEventManager.send("wp.start", JSONObject(params).toString(), null, 0, 0)
+
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?, persistentState: PersistableBundle?) {
+        super.onCreate(savedInstanceState, persistentState)
+
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_vision)
@@ -75,8 +126,8 @@ class Camera2Activity : AppCompatActivity(), View.OnClickListener {
     }
 
 
+
     private fun initVIew() {
-        iv_show = findViewById(R.id.image_view) as ImageView
         //mSurfaceView
         mSurfaceView = findViewById(R.id.surface_view) as SurfaceView
         mSurfaceView!!.setOnClickListener(this)
@@ -111,28 +162,15 @@ class Camera2Activity : AppCompatActivity(), View.OnClickListener {
         mCameraID =  "" + CameraCharacteristics.LENS_FACING_FRONT
         mImageReader = ImageReader.newInstance(1080, 1920, ImageFormat.JPEG, 100)
         mImageReader!!.setOnImageAvailableListener({ reader ->
-            //可以在这里处理拍照得到的临时照片 例如，写入本地
-//            mCameraDevice!!.close()
-//            mSurfaceView!!.visibility = View.GONE
-//            iv_show!!.visibility = View.VISIBLE
-            // 拿到拍照照片数据
-
             val image = reader.acquireLatestImage()
-
             val buffer = image.planes[0].buffer
-
-
-
             val bytes = ByteArray(buffer.remaining())
             buffer.get(bytes)//由缓冲区存入字节数组
             picture= BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
 
+            makeRequest(picture)
 
 
-            if (picture!= null) {
-                iv_show!!.setImageBitmap(picture)
-
-            }
         }, mainHandler)
         //获取摄像头管理
         mCameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
@@ -158,11 +196,7 @@ class Camera2Activity : AppCompatActivity(), View.OnClickListener {
         override fun onOpened(camera: CameraDevice) {//打开摄像头
             mCameraDevice = camera
             //开启预览
-
             takePreview()
-
-
-
         }
 
         override fun onDisconnected(camera: CameraDevice) {//关闭摄像头
@@ -218,17 +252,16 @@ class Camera2Activity : AppCompatActivity(), View.OnClickListener {
     }
 
     override fun onClick(v: View) {
-        takePicture()
+        if (!requestFlag){
+            takePicture()
+        }
 
-//        takePreview()
-//        var timer2 = Handler()
-//        timer2.postDelayed({
-//            takePicture()
-//
-//        }, 3000)
     }
 
     private fun takePicture() {
+
+        requestFlag = true
+
         if (mCameraDevice == null) return
         // 创建拍照需要的CaptureRequest.Builder
         val captureRequestBuilder: CaptureRequest.Builder
@@ -253,6 +286,56 @@ class Camera2Activity : AppCompatActivity(), View.OnClickListener {
 
     }
 
+    private fun makeRequest(bitmap: Bitmap){
+
+
+        var file = File(cacheDir, "cache.jpg")
+        val url = "https://westcentralus.api.cognitive.microsoft.com/vision/v1.0/describe"
+
+        try {
+            if (file.exists()) {
+                file.delete()
+            }
+            file.createNewFile()
+        } catch (e:IOException){
+            e.printStackTrace()
+        }
+
+        try {
+            val fos = FileOutputStream(file)
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos)
+            fos.flush()
+            fos.close()
+        } catch (e:FileNotFoundException) {
+            e.printStackTrace()
+        }
+        val MEDIA_TYPE = MediaType.parse("application/octet-stream");
+        val client = OkHttpClient()
+        var body = RequestBody.create(MEDIA_TYPE, file)
+        var request = Request.Builder()
+                .header("Ocp-Apim-Subscription-Key", "3b7708792daf4aeaaff74b9b3d474a5e")
+                .header("Content-Type", "multipart/form-data")
+                .url(url)
+                .post(body)
+                .build();
+
+        MainActivity.text2Voice(this@Camera2Activity, "正在识别中，稍后")
+
+        var newThread = Thread{
+            var response = client.newCall(request).execute()
+            runOnUiThread{
+                var result = JSONObject(response.body()?.string().toString())
+                var t = ((result.getJSONObject("description").get("captions") as JSONArray)[0] as  JSONObject).get("text") as String
+
+                MainActivity.text2Voice(this@Camera2Activity, t)
+                requestFlag = false
+            }
+        }
+        newThread.start()
+
+
+    }
+
     companion object {
         private val ORIENTATIONS = SparseIntArray()
 
@@ -263,5 +346,11 @@ class Camera2Activity : AppCompatActivity(), View.OnClickListener {
             ORIENTATIONS.append(Surface.ROTATION_180, 270)
             ORIENTATIONS.append(Surface.ROTATION_270, 180)
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // 停止唤醒监听
+        mWpEventManager.send("wp.stop", null, null, 0, 0)
     }
 }
