@@ -94,6 +94,11 @@ class MainActivity : AppCompatActivity() {
             intent.putExtra("grammar", "assets:///baidu_speech_grammar.bsg") // 设置离线的授权文件(离线模块需要授权), 该语法可以用自定义语义工具生成, 链接http://yuyin.baidu.com/asr#m5
             //intent.putExtra("slot-data", your slots); // 设置grammar中需要覆盖的词条,如联系人名
             startActivityForResult(intent, 1)
+            intent.putExtra("grammar", 10008)
+            intent.putExtra("grammar", 10014)
+            intent.putExtra("grammar", 10021)
+            intent.putExtra("nlu", "enable")
+
 
             intent.putExtra("license-file-path", Environment.getExternalStorageDirectory().path + "temp_license_2017-06-19")
             vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
@@ -114,11 +119,14 @@ class MainActivity : AppCompatActivity() {
         if (resultCode == Activity.RESULT_OK) {
             val results = data.extras
             val results_recognition = results.getStringArrayList("results_recognition")
-
+            val result_origin = results.getString("origin_result")
             for (re in results_recognition){
                 if ("相机" in re){
                     var intent = Intent(MainActivity@this, Camera2Activity::class.java)
                     startActivity(intent)
+                } else if ("电话" in re){
+                    var name = re.substring(4, re.length)
+                    call(name)
                 }
             }
 
@@ -168,7 +176,7 @@ class MainActivity : AppCompatActivity() {
         var cursor : Cursor? = null
         try {
 
-            cursor = contentResolver.query(ContactsContract.CommonDataKinds.Phone.CONTENT_URI, arrayOf(""),"", arrayOf(""), "")
+            cursor = contentResolver.query(ContactsContract.CommonDataKinds.Phone.CONTENT_URI,null, null, null, null)
             if (cursor != null){
                 while (cursor.moveToNext()){
                     var name = cursor.getString(cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME))
